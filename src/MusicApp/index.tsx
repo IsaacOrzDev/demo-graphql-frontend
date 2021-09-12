@@ -4,13 +4,12 @@ import MusicCard from '../MusicCard';
 import MusicForm from '../MusicForm';
 import MusicList from '../MusicList';
 import { makeStyles, createStyles, Theme, Typography } from '@material-ui/core';
-import {
-  useQuery as useApolloQuery,
-  gql,
-  useMutation as useApolloMutation,
-} from '@apollo/client';
 import { useQuery as useReactQuery } from 'react-query';
-import { request, gql as _gql } from 'graphql-request';
+import { API, graphqlOperation } from 'aws-amplify';
+import { listMusic } from '../graphql/queries';
+import { createMusic } from '../graphql/mutations';
+import { onCreateMusic } from '../graphql/subscriptions';
+import { CreateMusicInput } from '../APIModels';
 
 const endPoint = 'http://localhost:4000/graphql';
 
@@ -25,76 +24,35 @@ const useStyles = makeStyles((theme: Theme) =>
 function MusicApp() {
   const classes = useStyles();
 
-  const playlistQuery = useApolloQuery(gql`
-    query GetPlaylist {
-      getPlaylist {
-        id
-        title
-        signer
-        duration
-        isPlaying
-      }
-    }
-  `);
-
-  const playingQuery = useReactQuery('playing', () =>
-    request(
-      endPoint,
-      _gql/* GraphQL */ `
-        query getPlaying {
-          getPlaying {
-            title
-            signer
-            duration
-          }
-        }
-      `
-    )
+  const playlistQuery = useReactQuery('playlist', () =>
+    API.graphql(graphqlOperation(listMusic))
   );
 
-  const [addMusic, addMusicMutation] = useApolloMutation(gql`
-    mutation AddMusic($music: AddMusicInput) {
-      addMusic(music: $music) {
-        id
-        title
-        signer
-        duration
-        isPlaying
-      }
-    }
-  `);
-
-  const [setPlaying, setPlayingMutation] = useApolloMutation(gql`
-    mutation SetPlayingMutation($id: Int!) {
-      setPlaying(id: $id) {
-        id
-        title
-        signer
-        duration
-      }
-    }
-  `);
+  const createLister: any = API.graphql(graphqlOperation(onCreateMusic));
+  createLister.subscribe({
+    next: (data: any) => {
+      const newMusic = data?.value?.data?.onCreateMusic;
+      playlistQuery.refetch();
+    },
+  });
 
   const clickAddMusic = async (data: {
     title: string;
     signer: string;
     duration: string;
   }) => {
-    await addMusic({ variables: { music: { ...data } } });
-    playlistQuery.refetch();
+    const input: CreateMusicInput = {
+      ...data,
+    };
+    await API.graphql(graphqlOperation(createMusic, { input }));
   };
 
-  const clickPlaying = async (id: number) => {
-    await setPlaying({ variables: { id } });
-    playlistQuery.refetch();
-    playingQuery.refetch();
-  };
+  const clickPlaying = async (id: number) => {};
 
-  const playlistData = playlistQuery.data?.getPlaylist || [];
-  const playingData = playingQuery.data?.getPlaying;
+  const playlistData = playlistQuery.data?.data?.listMusic?.items || [];
+  const playingData = null;
 
   console.log('playlistQuery.data', playlistQuery.data);
-  console.log('playingData', playingQuery.data);
 
   return (
     <div className={styles.container}>

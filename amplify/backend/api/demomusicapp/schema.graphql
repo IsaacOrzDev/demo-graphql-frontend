@@ -1,0 +1,7 @@
+type Music @model {
+  id: ID!
+  title: String!
+  signer: String!
+  duration: String!
+  isPlaying: Boolean
+}
